@@ -5,9 +5,14 @@ interface ISettings {
 }
 
 const settings: ISettings = {
-  height: 500,
-  updateTime: 20,
-  width: 600
+  height:     500,
+  updateTime: 100,
+  width:      400
 };
 
+function calculateXDistanceFromScreenWidth(split: number) {
+  return settings.width / split;
+}
+
 export default settings;
+export { calculateXDistanceFromScreenWidth }

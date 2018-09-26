@@ -1,134 +1,132 @@
 import * as React from 'react';
-import { Layer } from 'react-konva';
+import { FastLayer, Layer, Rect } from 'react-konva';
 import { Subscription } from 'rxjs';
 import * as v4 from 'uuid/v4';
 import Animation from '../utils/Animation';
+import Collidable from '../utils/Collidable';
 import { getRandomDelay } from '../utils/random';
+import settings from '../utils/settings';
 import BaseComponent from './BaseComponent';
-import Collidable from './Collidable';
-import MovingObject from './MovingObject';
 
 interface IProps {
   x: number;
-  startComponent: React.ReactElement<BaseComponent>;
+  onClickSuccess: (points: number) => void;
 }
 
 interface IState {
-  clickComponent: BaseComponent;
-  components: Array<React.ReactElement<typeof Collidable>>;
-  refs: any[];
+  components: Collidable[];
   renderFrame: number;
 }
 
 export default class CollisionContainer extends React.Component<IProps, IState> {
-  
+
   public state = {
-    clickComponent: React.cloneElement(this.props.startComponent, {
-      // @ts-ignore
-      onClick: this.handleOnClick.bind(this)
-    }),
-    components: new Array(),
-    refs: new Array(),
+    components:  new Array(),
     renderFrame: 0
   };
-  
+
   private randomSpawn: Subscription;
   private animation: Animation;
-  
+  private clickable: BaseComponent;
+
   constructor(props: IProps) {
     super(props);
+
+    this.checkCollision = this.checkCollision.bind(this);
     this.handleOnClick = this.handleOnClick.bind(this);
-    this.handleOnDestroy = this.handleOnDestroy.bind(this);
+    this.update = this.update.bind(this);
+    this.spawnBoxes = this.spawnBoxes.bind(this);
+
     this.animation = new Animation();
-    this.animation.interval$.subscribe(x => {
-      this.setState({
-        renderFrame: x
-      });
-    })
+    this.animation.interval$.subscribe(this.update)
   }
-  
+
   public componentDidMount() {
-    this.spawnBox().then();
+    this.spawnBoxes().then();
   }
-  
+
   public componentWillUnmount() {
     if (this.randomSpawn) {
       this.randomSpawn.unsubscribe();
     }
   }
-  
+
   public render() {
+    const { x } = this.props;
     return (
-      <Layer>
-        {this.state.clickComponent}
-        {this.state.components.map(components => React.cloneElement(components, { renderFrame: this.state.renderFrame }))}
-      </Layer>
+      <React.Fragment>
+        <FastLayer>
+          <BaseComponent
+            ref={r => {
+              if (r) {
+                this.clickable = r;
+              }
+            }}
+            x={x}
+            y={settings.height - 50}
+            width={50}
+            height={50}
+          />
+          {this.state.components.map(
+            collidable => collidable.render()
+          )}
+        </FastLayer>
+        <Layer>
+          <Rect
+            x={x}
+            y={settings.height - 50}
+            width={50}
+            height={50}
+            onClick={this.handleOnClick}
+          />
+        </Layer>
+      </React.Fragment>
+
     )
   }
-  
-  private async spawnBox() {
-    const { x } = this.props;
-    const { components, renderFrame } = this.state;
-    this.randomSpawn = getRandomDelay().subscribe(async () => {
-      const component: any = await React.cloneElement(<MovingObject
-        renderFrame={renderFrame}
-        key={ v4() }
-        ref={r => {
-          if (r) {
-            const refs = this.state.refs;
-            refs.push(r);
-            this.setState({ refs });
-          }
-        }}
-        x={ x }
-        y={ 0 }
-        color="red"
-        yAnimation={ 3 }
-        onClick={this.handleOnClick}
-        onDestroy={this.handleOnDestroy}
-      />);
 
-      components.push(component);
-
-      this.setState({
-        components
+  private update(renderFrame: number) {
+    const { components } = this.state;
+    this.setState({
+      components: components.filter(component => {
+        component.update();
+        return !component.isOutOfBounds();
       })
     });
   }
-  
+
+  private async spawnBoxes() {
+    const { x } = this.props;
+    this.randomSpawn = getRandomDelay().subscribe(() => {
+      const { components } = this.state;
+      components.push(new Collidable(x, 0, 50, 50, 'red', v4()));
+      this.setState({ components });
+    });
+  }
+
   private handleOnClick() {
-    const { components, refs } = this.state;
-    const collision = components.findIndex((component, i) => this.checkCollision(refs[i]));
+    const { onClickSuccess } = this.props;
+    const { components } = this.state;
+    const { state: { center } } = this.clickable;
+    const collision = components.findIndex(this.checkCollision);
     if (collision > -1) {
+      onClickSuccess(components[collision].calculateScore(center))
       this.destroy(collision);
     }
   }
-  
+
   private checkCollision(ref: Collidable): boolean {
-    const { clickComponent: { props: { x, y, width, height }} } = this.state;
+    const { state: { x, y }, props: { width, height } } = this.clickable;
     return ref.checkCollision(x, y, width, height);
   }
-  
+
   private async destroy(index: number) {
-    const { components, refs } = this.state;
-    
+    const { components } = this.state;
+
     components.splice(index, 1);
-    refs.splice(index, 1);
-    
+
     await this.setState({
-      components,
-      refs
+      components
     });
-  }
-  
-  private handleOnDestroy(id: string) {
-    const { refs } = this.state;
-    const index = refs.findIndex(ref => {
-        return ref.state.id === id
-      }
-    );
-    if (index > -1) {
-      this.destroy(index);
-    }
   }
 }

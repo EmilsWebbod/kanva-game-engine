@@ -27,23 +27,23 @@ export interface IBaseObjectState {
 
 export default abstract class BaseObject<T = {}, U = {}> extends React.Component<T & IBaseObjectProps, U & IBaseObjectState> implements IBaseObject {
   public static defaultProps = {
-    color: 'black',
+    color:  'black',
     height: 50,
-    width: 50,
-    x: 0,
-    y: 0
+    width:  50,
+    x:      0,
+    y:      0
   };
-  
+
   public static defaultState<T, U>(props: IBaseObjectProps): any {
     return {
       center: calculateCenter(props.x, props.y, props.height, props.width),
-        id: v4(),
-      x: props.x,
-      y: props.y
+      id:     v4(),
+      x:      props.x,
+      y:      props.y
     }
   };
-  
+
   public id: string = v4();
-  
+
   public state = BaseObject.defaultState(this.props);
 }

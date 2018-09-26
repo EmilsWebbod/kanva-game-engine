@@ -7,3 +7,7 @@ export function calculateCenter(x: number, y: number, w: number, h: number) {
     y: y + h2
   };
 }
+
+export function calculateRadius(x: number, y: number, w: number, h: number) {
+  return w / 2;
+}
